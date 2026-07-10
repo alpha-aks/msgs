@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { neon } = require('@neondatabase/serverless');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
@@ -10,25 +10,30 @@ app.use(cors());
 app.use(express.json());
 
 const dbUrl = process.env.DATABASE_URL;
-const readDbUrl = process.env.DATABASE_READ_URL || dbUrl;
 
 if (!dbUrl) {
   console.warn('WARNING: DATABASE_URL environment variable is not defined. Please add it to your .env file.');
 }
 
+const pool = new Pool({
+  connectionString: dbUrl,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
 // Auto-initialize DB Table
 async function initDb() {
   if (!dbUrl) return;
   try {
-    const sql = neon(dbUrl);
-    await sql`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS love_space_data (
         id INT PRIMARY KEY,
         encrypted_data TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `;
-    console.log('Neon database table verified/created successfully.');
+    `);
+    console.log('Neon database table verified/created successfully via pg Pool.');
   } catch (err) {
     console.error('Error initializing database:', err);
   }
@@ -36,16 +41,15 @@ async function initDb() {
 initDb();
 
 app.get('/api/data', async (req, res) => {
-  if (!readDbUrl) {
+  if (!dbUrl) {
     return res.status(500).json({ error: 'DATABASE_URL is not configured.' });
   }
   try {
-    const sql = neon(readDbUrl);
-    const result = await sql.query('SELECT encrypted_data FROM love_space_data WHERE id = 1');
-    if (result.length === 0) {
+    const result = await pool.query('SELECT encrypted_data FROM love_space_data WHERE id = 1');
+    if (result.rows.length === 0) {
       return res.json({});
     }
-    res.json({ data: result[0].encrypted_data });
+    res.json({ data: result.rows[0].encrypted_data });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -56,13 +60,12 @@ app.post('/api/data', async (req, res) => {
     return res.status(500).json({ error: 'DATABASE_URL is not configured.' });
   }
   try {
-    const sql = neon(dbUrl);
     const { data } = req.body;
     if (!data) {
       return res.status(400).json({ error: 'Missing encrypted data payload' });
     }
 
-    const result = await sql.query(`
+    const result = await pool.query(`
       INSERT INTO love_space_data (id, encrypted_data, updated_at)
       VALUES (1, $1, CURRENT_TIMESTAMP)
       ON CONFLICT (id)
@@ -70,7 +73,7 @@ app.post('/api/data', async (req, res) => {
       RETURNING encrypted_data;
     `, [data]);
 
-    res.json({ data: result[0].encrypted_data });
+    res.json({ data: result.rows[0].encrypted_data });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

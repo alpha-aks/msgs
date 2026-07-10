@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-export default async (request, context) => {
+export default async (request, _context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
