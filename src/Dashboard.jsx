@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Heart, MessageCircle, Calendar, FileText, Settings, 
-  Send, Trash2, LogOut, Play, Pause, Sparkles, Plus 
+  Send, Trash2, LogOut, Play, Pause, Sparkles, Plus,
+  Bell, Shield, ShieldAlert, CheckCircle, Circle
 } from 'lucide-react';
 import { encryptJSON, decryptJSON } from './crypto';
 
@@ -12,15 +13,31 @@ const DB_URL = window.location.hostname === 'localhost' || window.location.hostn
 export default function Dashboard({ onLockOut }) {
   const [activeTab, setActiveTab] = useState('chat');
   const [currentUser, setCurrentUser] = useState('Me');
-  const [partnerName, setPartnerName] = useState('My Love');
+  const [partnerName] = useState('My Love');
   const [anniversaryDate, setAnniversaryDate] = useState(() => {
     return localStorage.getItem('anniversaryDate') || '2024-12-25';
   });
   
   const [messages, setMessages] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  
+  // Admin privileges state
+  const [isAdmin, setIsAdmin] = useState(() => {
+    return localStorage.getItem('isAdminMode') === 'true';
+  });
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminError, setAdminError] = useState('');
+
+  // Form states for Events & Reminders
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [eventDesc, setEventDesc] = useState('');
+  const [reminderText, setReminderText] = useState('');
+
   const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping] = useState(false);
   const [noteText, setNoteText] = useState('');
   
   // Together counter state
@@ -35,7 +52,7 @@ export default function Dashboard({ onLockOut }) {
 
   const messagesEndRef = useRef(null);
 
-  // Fetch all data (messages and notes together from the single encrypted blob)
+  // Fetch all data (messages, notes, events, reminders together from the single encrypted blob)
   const fetchData = async () => {
     try {
       const res = await fetch(DB_URL);
@@ -50,6 +67,12 @@ export default function Dashboard({ onLockOut }) {
             if (decrypted.notes && Array.isArray(decrypted.notes)) {
               setNotes(decrypted.notes);
             }
+            if (decrypted.events && Array.isArray(decrypted.events)) {
+              setEvents(decrypted.events);
+            }
+            if (decrypted.reminders && Array.isArray(decrypted.reminders)) {
+              setReminders(decrypted.reminders);
+            }
           }
         }
       }
@@ -58,11 +81,13 @@ export default function Dashboard({ onLockOut }) {
     }
   };
 
-  // Save both messages and notes to the remote database
-  const saveData = async (updatedMessages, updatedNotes) => {
+  // Save everything to the remote database
+  const saveData = async (updatedMessages, updatedNotes, updatedEvents = events, updatedReminders = reminders) => {
     const payload = {
       messages: updatedMessages,
-      notes: updatedNotes
+      notes: updatedNotes,
+      events: updatedEvents,
+      reminders: updatedReminders
     };
     try {
       const encrypted = encryptJSON(payload);
@@ -87,7 +112,7 @@ export default function Dashboard({ onLockOut }) {
   useEffect(() => {
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [events, reminders]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -222,6 +247,85 @@ export default function Dashboard({ onLockOut }) {
     alert('Settings Saved! Your together-timer has updated. ❤');
   };
 
+  // Admin and form handlers for Events & Reminders
+  const handleToggleAdmin = (e) => {
+    e.preventDefault();
+    if (adminPinInput === '2512') {
+      const newAdminState = !isAdmin;
+      setIsAdmin(newAdminState);
+      localStorage.setItem('isAdminMode', newAdminState ? 'true' : 'false');
+      setAdminPinInput('');
+      setAdminError('');
+    } else {
+      setAdminError('Incorrect anniversary date PIN. Try again! ❤');
+    }
+  };
+
+  const handleAddEvent = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    if (!eventTitle.trim() || !eventDate) return;
+
+    const newEvent = {
+      id: Date.now(),
+      title: eventTitle.trim(),
+      date: eventDate,
+      desc: eventDesc.trim()
+    };
+
+    const updatedEvents = [...events, newEvent].sort((a, b) => new Date(a.date) - new Date(b.date));
+    setEvents(updatedEvents);
+    setEventTitle('');
+    setEventDate('');
+    setEventDesc('');
+
+    await saveData(messages, notes, updatedEvents, reminders);
+  };
+
+  const handleDeleteEvent = async (id) => {
+    if (!isAdmin) return;
+    const updatedEvents = events.filter(event => event.id !== id);
+    setEvents(updatedEvents);
+    await saveData(messages, notes, updatedEvents, reminders);
+  };
+
+  const handleAddReminder = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    if (!reminderText.trim()) return;
+
+    const newReminder = {
+      id: Date.now(),
+      text: reminderText.trim(),
+      completed: false,
+      dateAdded: new Date().toLocaleDateString()
+    };
+
+    const updatedReminders = [newReminder, ...reminders];
+    setReminders(updatedReminders);
+    setReminderText('');
+
+    await saveData(messages, notes, events, updatedReminders);
+  };
+
+  const handleToggleReminder = async (id) => {
+    const updatedReminders = reminders.map(rem => {
+      if (rem.id === id) {
+        return { ...rem, completed: !rem.completed };
+      }
+      return rem;
+    });
+    setReminders(updatedReminders);
+    await saveData(messages, notes, events, updatedReminders);
+  };
+
+  const handleDeleteReminder = async (id) => {
+    if (!isAdmin) return;
+    const updatedReminders = reminders.filter(rem => rem.id !== id);
+    setReminders(updatedReminders);
+    await saveData(messages, notes, events, updatedReminders);
+  };
+
   return (
     <div className="dashboard-wrapper">
       {/* Header */}
@@ -229,6 +333,7 @@ export default function Dashboard({ onLockOut }) {
         <div className="brand">
           <Heart className="brand-heart animate-beat" fill="#ff6584" size={28} />
           <h1>Our Love Space</h1>
+          {isAdmin && <span className="admin-badge"><Shield size={12} /> Admin Mode</span>}
         </div>
         <button type="button" className="lock-out-btn" onClick={onLockOut}>
           <LogOut size={16} />
@@ -253,11 +358,25 @@ export default function Dashboard({ onLockOut }) {
           Together
         </button>
         <button 
+          className={`tab-btn ${activeTab === 'events' ? 'active' : ''}`}
+          onClick={() => setActiveTab('events')}
+        >
+          <Sparkles size={18} />
+          Events
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
+          onClick={() => setActiveTab('reminders')}
+        >
+          <Bell size={18} />
+          For Her
+        </button>
+        <button 
           className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
           onClick={() => setActiveTab('notes')}
         >
           <FileText size={18} />
-          Love Notes
+          Notes
         </button>
         <button 
           className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
@@ -366,6 +485,146 @@ export default function Dashboard({ onLockOut }) {
           </div>
         )}
 
+        {/* Events Tab */}
+        {activeTab === 'events' && (
+          <div className="events-tab-container">
+            {isAdmin ? (
+              <form onSubmit={handleAddEvent} className="events-input-form">
+                <h3>Post a New Special Event</h3>
+                <div className="form-row">
+                  <input 
+                    type="text" 
+                    placeholder="Event Title (e.g. First Date Anniversary)" 
+                    value={eventTitle}
+                    onChange={(e) => setEventTitle(e.target.value)}
+                    required
+                  />
+                  <input 
+                    type="date" 
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <textarea 
+                  placeholder="Describe this beautiful event or detail plans..."
+                  value={eventDesc}
+                  onChange={(e) => setEventDesc(e.target.value)}
+                  rows="2"
+                />
+                <button type="submit" className="add-event-btn">
+                  <Plus size={16} /> Post Event
+                </button>
+              </form>
+            ) : (
+              <div className="admin-notice">
+                <ShieldAlert size={16} />
+                <span>Only Admin can post new events. Unlocks in the Config tab.</span>
+              </div>
+            )}
+
+            <div className="events-timeline">
+              {events.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', margin: '40px 0' }}>
+                  <p>No special events posted yet. {isAdmin ? 'Add one above!' : ''} 📅</p>
+                </div>
+              ) : (
+                <div className="timeline-list">
+                  {events.map((event) => (
+                    <div key={event.id} className="timeline-item">
+                      <div className="timeline-badge">❤</div>
+                      <div className="timeline-card">
+                        <div className="timeline-header">
+                          <h4>{event.title}</h4>
+                          <span className="timeline-date">
+                            {new Date(event.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        {event.desc && <p className="timeline-desc">{event.desc}</p>}
+                        {isAdmin && (
+                          <button 
+                            type="button" 
+                            className="delete-event-btn"
+                            onClick={() => handleDeleteEvent(event.id)}
+                            title="Delete event"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Reminders Tab */}
+        {activeTab === 'reminders' && (
+          <div className="reminders-tab-container">
+            {isAdmin ? (
+              <form onSubmit={handleAddReminder} className="reminders-input-form">
+                <h3>Add a Reminder for Her</h3>
+                <p className="subtitle">Things you want to do for her, gestures, or tasks</p>
+                <div className="form-row">
+                  <input 
+                    type="text" 
+                    placeholder="E.g. Buy her favorite sunflowers this Saturday" 
+                    value={reminderText}
+                    onChange={(e) => setReminderText(e.target.value)}
+                    required
+                  />
+                  <button type="submit" className="add-reminder-btn">
+                    <Plus size={16} /> Add Reminder
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="admin-notice">
+                <ShieldAlert size={16} />
+                <span>Only Admin can add reminders. Unlocks in the Config tab.</span>
+              </div>
+            )}
+
+            <div className="reminders-list-container">
+              {reminders.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', margin: '40px 0' }}>
+                  <p>No reminders added yet. {isAdmin ? 'Add one above!' : ''} 🌸</p>
+                </div>
+              ) : (
+                <div className="reminders-grid">
+                  {reminders.map((rem) => (
+                    <div key={rem.id} className={`reminder-card ${rem.completed ? 'completed' : ''}`}>
+                      <button 
+                        type="button" 
+                        className="toggle-reminder-btn"
+                        onClick={() => handleToggleReminder(rem.id)}
+                      >
+                        {rem.completed ? <CheckCircle size={20} className="check-icon" /> : <Circle size={20} />}
+                      </button>
+                      <div className="reminder-body">
+                        <span className="reminder-text">{rem.text}</span>
+                        <span className="reminder-date">Added: {rem.dateAdded}</span>
+                      </div>
+                      {isAdmin && (
+                        <button 
+                          type="button" 
+                          className="delete-reminder-btn"
+                          onClick={() => handleDeleteReminder(rem.id)}
+                          title="Delete reminder"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Notes Tab */}
         {activeTab === 'notes' && (
           <div className="notes-container">
@@ -416,6 +675,29 @@ export default function Dashboard({ onLockOut }) {
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="settings-container">
+            <div className="settings-group">
+              <h3>Admin Privileges</h3>
+              <div className="settings-card">
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                  Enable Admin Mode to post special events and add custom reminders/todo lists for her.
+                </p>
+                <form onSubmit={handleToggleAdmin} className="settings-row" style={{ gap: '10px' }}>
+                  <input 
+                    type="password" 
+                    placeholder="Enter anniversary PIN..."
+                    className="settings-input"
+                    value={adminPinInput}
+                    onChange={(e) => setAdminPinInput(e.target.value)}
+                  />
+                  <button type="submit" className="save-settings-btn" style={{ whiteSpace: 'nowrap' }}>
+                    {isAdmin ? 'Disable Admin' : 'Enable Admin'}
+                  </button>
+                </form>
+                {adminError && <p style={{ color: 'var(--primary-pink)', fontSize: '0.85rem', marginTop: '8px' }}>{adminError}</p>}
+                {isAdmin && <p style={{ color: '#10b981', fontSize: '0.85rem', marginTop: '8px', fontWeight: 600 }}>✔ Admin privileges active.</p>}
+              </div>
+            </div>
+
             <div className="settings-group">
               <h3>Customize Anniversary Timer</h3>
               <div className="settings-card">

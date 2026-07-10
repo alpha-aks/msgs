@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Heart } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 export default function LockScreen({ onUnlock }) {
   const [code, setCode] = useState('');
