@@ -21,13 +21,13 @@ async function initDb() {
   if (!dbUrl) return;
   try {
     const sql = neon(dbUrl);
-    await sql(`
+    await sql`
       CREATE TABLE IF NOT EXISTS love_space_data (
         id INT PRIMARY KEY,
         encrypted_data TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
+    `;
     console.log('Neon database table verified/created successfully.');
   } catch (err) {
     console.error('Error initializing database:', err);
@@ -41,7 +41,7 @@ app.get('/api/data', async (req, res) => {
   }
   try {
     const sql = neon(readDbUrl);
-    const result = await sql('SELECT encrypted_data FROM love_space_data WHERE id = 1');
+    const result = await sql.query('SELECT encrypted_data FROM love_space_data WHERE id = 1');
     if (result.length === 0) {
       return res.json({});
     }
@@ -62,7 +62,7 @@ app.post('/api/data', async (req, res) => {
       return res.status(400).json({ error: 'Missing encrypted data payload' });
     }
 
-    const result = await sql(`
+    const result = await sql.query(`
       INSERT INTO love_space_data (id, encrypted_data, updated_at)
       VALUES (1, $1, CURRENT_TIMESTAMP)
       ON CONFLICT (id)

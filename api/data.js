@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const sql = neon(readDbUrl);
-      const result = await sql('SELECT encrypted_data FROM love_space_data WHERE id = 1');
+      const result = await sql.query('SELECT encrypted_data FROM love_space_data WHERE id = 1');
       if (result.length === 0) {
         return res.status(200).json({});
       }
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing encrypted data payload' });
       }
 
-      const result = await sql(`
+      const result = await sql.query(`
         INSERT INTO love_space_data (id, encrypted_data, updated_at)
         VALUES (1, $1, CURRENT_TIMESTAMP)
         ON CONFLICT (id)
