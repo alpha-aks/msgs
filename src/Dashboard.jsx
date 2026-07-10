@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 import { encryptJSON, decryptJSON } from './crypto';
 
-const DB_URL = 'https://jsonblob.com/api/jsonBlob/019f4ca4-0beb-76b2-9344-b3398fb07dc4';
+const DB_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+  ? 'http://localhost:5001/api/data' 
+  : '/api/data';
 
 export default function Dashboard({ onLockOut }) {
   const [activeTab, setActiveTab] = useState('chat');
@@ -65,7 +67,7 @@ export default function Dashboard({ onLockOut }) {
     try {
       const encrypted = encryptJSON(payload);
       await fetch(DB_URL, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
