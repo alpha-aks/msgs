@@ -1,0 +1,109 @@
+:root {
+  --primary-pink: #ff6584;
+  --primary-pink-dark: #e04d6d;
+  --primary-pink-light: #ffe5ec;
+  --bg-gradient: linear-gradient(135deg, #fef1f2 0%, #fae8ff 50%, #e0f2fe 100%);
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(255, 255, 255, 0.6);
+  --shadow-lg: 0 20px 40px -15px rgba(255, 101, 132, 0.15);
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --text-main: #374151;
+  --text-dark: #1f2937;
+  --text-muted: #6b7280;
+  
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  color: var(--text-main);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-pink: #ff7e9a;
+    --primary-pink-dark: #f43f5e;
+    --primary-pink-light: #2d1624;
+    --bg-gradient: linear-gradient(135deg, #0f0710 0%, #1a0b18 50%, #031525 100%);
+    --card-bg: rgba(15, 10, 18, 0.7);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --shadow-lg: 0 20px 45px -15px rgba(244, 63, 94, 0.35);
+    --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    --text-main: #e2e8f0;
+    --text-dark: #f8fafc;
+    --text-muted: #94a3b8;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--primary-pink);
+  border-radius: 9999px;
+  opacity: 0.5;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-pink-dark);
+}
+
+/* Keyframes */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+@keyframes float-heart {
+  0% {
+    transform: translateY(100vh) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  90% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-15vh) scale(var(--size)) rotate(var(--rotation));
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes heart-beat {
+  0% { transform: scale(1); }
+  14% { transform: scale(1.15); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.15); }
+  70% { transform: scale(1); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s infinite ease-in-out;
+}
+
+.animate-beat {
+  animation: heart-beat 1.6s infinite ease-in-out;
+}
