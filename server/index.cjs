@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const { neon } = require('@neondatabase/serverless');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -7,35 +9,68 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-const DB_URL = 'https://jsonblob.com/api/jsonBlob/019f4ca4-0beb-76b2-9344-b3398fb07dc4';
+const dbUrl = process.env.DATABASE_URL;
+const readDbUrl = process.env.DATABASE_READ_URL || dbUrl;
+
+if (!dbUrl) {
+  console.warn('WARNING: DATABASE_URL environment variable is not defined. Please add it to your .env file.');
+}
+
+// Auto-initialize DB Table
+async function initDb() {
+  if (!dbUrl) return;
+  try {
+    const sql = neon(dbUrl);
+    await sql(`
+      CREATE TABLE IF NOT EXISTS love_space_data (
+        id INT PRIMARY KEY,
+        encrypted_data TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Neon database table verified/created successfully.');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+  }
+}
+initDb();
 
 app.get('/api/data', async (req, res) => {
+  if (!readDbUrl) {
+    return res.status(500).json({ error: 'DATABASE_URL is not configured.' });
+  }
   try {
-    const response = await fetch(DB_URL);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `JSONBlob error: ${response.status}` });
+    const sql = neon(readDbUrl);
+    const result = await sql('SELECT encrypted_data FROM love_space_data WHERE id = 1');
+    if (result.length === 0) {
+      return res.json({});
     }
-    const data = await response.json();
-    res.json(data);
+    res.json({ data: result[0].encrypted_data });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 app.post('/api/data', async (req, res) => {
+  if (!dbUrl) {
+    return res.status(500).json({ error: 'DATABASE_URL is not configured.' });
+  }
   try {
-    const response = await fetch(DB_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(req.body)
-    });
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `JSONBlob error: ${response.status}` });
+    const sql = neon(dbUrl);
+    const { data } = req.body;
+    if (!data) {
+      return res.status(400).json({ error: 'Missing encrypted data payload' });
     }
-    const data = await response.json();
-    res.json(data);
+
+    const result = await sql(`
+      INSERT INTO love_space_data (id, encrypted_data, updated_at)
+      VALUES (1, $1, CURRENT_TIMESTAMP)
+      ON CONFLICT (id)
+      DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data, updated_at = CURRENT_TIMESTAMP
+      RETURNING encrypted_data;
+    `, [data]);
+
+    res.json({ data: result[0].encrypted_data });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
