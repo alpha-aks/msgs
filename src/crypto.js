@@ -1,41 +1,53 @@
-// Simple client-side encryption using XOR cipher and Base64 encoding
-// This turns any JSON string into scrambled gibberish, decryptable only with the correct passcode
+// Robust client-side encryption using XOR cipher, TextEncoder/Decoder, and Base64.
+// This properly supports all unicode characters and emojis without throwing encoding errors.
 
 const KEY = '2512';
 
 export function encrypt(text) {
   if (!text) return '';
   try {
-    let result = '';
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const keyChar = KEY.charCodeAt(i % KEY.length);
-      // XOR the character code with the key character code
-      const xorValue = charCode ^ keyChar;
-      result += String.fromCharCode(xorValue);
+    const encoder = new TextEncoder();
+    const textBytes = encoder.encode(text);
+    const keyBytes = encoder.encode(KEY);
+    
+    const xorBytes = new Uint8Array(textBytes.length);
+    for (let i = 0; i < textBytes.length; i++) {
+      xorBytes[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
     }
-    // Encode to base64 to make it safe for HTTP transmission
-    return btoa(unescape(encodeURIComponent(result)));
+    
+    // Convert binary bytes to a Latin1 string safe for btoa
+    let binString = '';
+    for (let i = 0; i < xorBytes.length; i++) {
+      binString += String.fromCharCode(xorBytes[i]);
+    }
+    
+    return btoa(binString);
   } catch (e) {
     console.error('Encryption failed:', e);
-    return text;
+    return '';
   }
 }
 
 export function decrypt(cipherText) {
   if (!cipherText) return '';
   try {
-    const rawString = decodeURIComponent(escape(atob(cipherText)));
-    let result = '';
-    for (let i = 0; i < rawString.length; i++) {
-      const charCode = rawString.charCodeAt(i);
-      const keyChar = KEY.charCodeAt(i % KEY.length);
-      const xorValue = charCode ^ keyChar;
-      result += String.fromCharCode(xorValue);
+    const binString = atob(cipherText);
+    const keyBytes = new TextEncoder().encode(KEY);
+    
+    const xorBytes = new Uint8Array(binString.length);
+    for (let i = 0; i < binString.length; i++) {
+      xorBytes[i] = binString.charCodeAt(i);
     }
-    return result;
+    
+    const textBytes = new Uint8Array(xorBytes.length);
+    for (let i = 0; i < xorBytes.length; i++) {
+      textBytes[i] = xorBytes[i] ^ keyBytes[i % keyBytes.length];
+    }
+    
+    const decoder = new TextDecoder();
+    return decoder.decode(textBytes);
   } catch (e) {
-    console.error('Decryption failed. Passcode might be incorrect.');
+    console.error('Decryption failed:', e);
     return '';
   }
 }
@@ -50,6 +62,7 @@ export function decryptJSON(cipherText) {
   try {
     return JSON.parse(decryptedText);
   } catch (e) {
+    console.error('JSON parsing failed after decryption:', e);
     return null;
   }
 }
