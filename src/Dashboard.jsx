@@ -5,9 +5,7 @@ import {
 } from 'lucide-react';
 import { encryptJSON, decryptJSON } from './crypto';
 
-// Generated a highly unique bucket ID for private storage
-const BUCKET_ID = 'love_space_atharva_rudra_2512_bucket';
-const DB_URL = `https://kvdb.io/${BUCKET_ID}`;
+const DB_URL = 'https://jsonblob.com/api/jsonBlob/019f4ca4-0beb-76b2-9344-b3398fb07dc4';
 
 export default function Dashboard({ onLockOut }) {
   const [activeTab, setActiveTab] = useState('chat');
@@ -18,9 +16,9 @@ export default function Dashboard({ onLockOut }) {
   });
   
   const [messages, setMessages] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [notes, setNotes] = useState([]);
   const [noteText, setNoteText] = useState('');
   
   // Together counter state
@@ -35,57 +33,57 @@ export default function Dashboard({ onLockOut }) {
 
   const messagesEndRef = useRef(null);
 
-  // Fetch messages from online DB
-  const fetchMessages = async () => {
+  // Fetch all data (messages and notes together from the single encrypted blob)
+  const fetchData = async () => {
     try {
-      const res = await fetch(`${DB_URL}/messages`);
+      const res = await fetch(DB_URL);
       if (res.ok) {
-        const encryptedText = await res.text();
-        if (encryptedText) {
-          const data = decryptJSON(encryptedText);
-          if (data && Array.isArray(data)) {
-            setMessages(data);
+        const json = await res.json();
+        if (json && json.data) {
+          const decrypted = decryptJSON(json.data);
+          if (decrypted) {
+            if (decrypted.messages && Array.isArray(decrypted.messages)) {
+              setMessages(decrypted.messages);
+            }
+            if (decrypted.notes && Array.isArray(decrypted.notes)) {
+              setNotes(decrypted.notes);
+            }
           }
         }
-      } else if (res.status === 404) {
-        // Key doesn't exist yet, initialize it
-        setMessages([]);
       }
     } catch (e) {
-      console.error('Error fetching messages from online DB:', e);
+      console.error('Error fetching data from remote database:', e);
     }
   };
 
-  // Fetch notes from online DB
-  const fetchNotes = async () => {
+  // Save both messages and notes to the remote database
+  const saveData = async (updatedMessages, updatedNotes) => {
+    const payload = {
+      messages: updatedMessages,
+      notes: updatedNotes
+    };
     try {
-      const res = await fetch(`${DB_URL}/notes`);
-      if (res.ok) {
-        const encryptedText = await res.text();
-        if (encryptedText) {
-          const data = decryptJSON(encryptedText);
-          if (data && Array.isArray(data)) {
-            setNotes(data);
-          }
-        }
-      } else if (res.status === 404) {
-        // Key doesn't exist yet, initialize it
-        setNotes([]);
-      }
+      const encrypted = encryptJSON(payload);
+      await fetch(DB_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ data: encrypted })
+      });
     } catch (e) {
-      console.error('Error fetching notes from online DB:', e);
+      console.error('Error saving data to remote database:', e);
     }
   };
 
   // Load initial data
   useEffect(() => {
-    fetchMessages();
-    fetchNotes();
+    fetchData();
   }, []);
 
-  // Poll for new messages every 3 seconds
+  // Poll for updates every 3 seconds
   useEffect(() => {
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -184,15 +182,8 @@ export default function Dashboard({ onLockOut }) {
     setMessages(updatedMessages);
     setInputText('');
 
-    try {
-      const encryptedData = encryptJSON(updatedMessages);
-      await fetch(`${DB_URL}/messages`, {
-        method: 'POST',
-        body: encryptedData
-      });
-    } catch (err) {
-      console.error('Error saving message to database:', err);
-    }
+    // Save to remote DB
+    await saveData(updatedMessages, notes);
   };
 
   const handleAddNote = async (e) => {
@@ -212,30 +203,16 @@ export default function Dashboard({ onLockOut }) {
     setNotes(updatedNotes);
     setNoteText('');
 
-    try {
-      const encryptedData = encryptJSON(updatedNotes);
-      await fetch(`${DB_URL}/notes`, {
-        method: 'POST',
-        body: encryptedData
-      });
-    } catch (err) {
-      console.error('Error saving note to database:', err);
-    }
+    // Save to remote DB
+    await saveData(messages, updatedNotes);
   };
 
   const handleDeleteNote = async (id) => {
     const updatedNotes = notes.filter(note => note.id !== id);
     setNotes(updatedNotes);
 
-    try {
-      const encryptedData = encryptJSON(updatedNotes);
-      await fetch(`${DB_URL}/notes`, {
-        method: 'POST',
-        body: encryptedData
-      });
-    } catch (err) {
-      console.error('Error deleting note from database:', err);
-    }
+    // Save to remote DB
+    await saveData(messages, updatedNotes);
   };
 
   const handleSaveSettings = () => {
