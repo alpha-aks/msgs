@@ -75,6 +75,8 @@ export default function Dashboard({ onLockOut }) {
             }
           }
         }
+      } else {
+        console.error('Database returned non-ok status:', res.status, res.statusText);
       }
     } catch (e) {
       console.error('Error fetching data from remote database:', e);
@@ -91,15 +93,20 @@ export default function Dashboard({ onLockOut }) {
     };
     try {
       const encrypted = encryptJSON(payload);
-      await fetch(DB_URL, {
+      const res = await fetch(DB_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ data: encrypted })
       });
+      if (!res.ok) {
+        console.error('Database save failed with status:', res.status);
+        alert('Failed to save to database. Check if DATABASE_URL is configured on your server.');
+      }
     } catch (e) {
       console.error('Error saving data to remote database:', e);
+      alert('Network error trying to save database.');
     }
   };
 
